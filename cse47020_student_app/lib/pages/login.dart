@@ -9,50 +9,71 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _tokenController = TextEditingController();
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final _accessTokenController = TextEditingController();
+  final _refreshTokenController = TextEditingController();
+  final _storage = const FlutterSecureStorage();
   String _status = '';
 
-  Future<void> _saveToken() async {
-    final token = _tokenController.text.trim();
-    if (token.isEmpty) {
-      setState(() => _status = "Token is empty!");
+  Future<void> _saveTokens() async {
+    final accessToken = _accessTokenController.text.trim();
+    final refreshToken = _refreshTokenController.text.trim();
+
+    if (accessToken.isEmpty) {
+      setState(() => _status = "Access token is required.");
       return;
     }
 
-    await _storage.write(key: 'access_token', value: token);
-    setState(() => _status = "Access token saved!");
+    await _storage.write(key: 'access_token', value: accessToken);
+    if (refreshToken.isNotEmpty) {
+      await _storage.write(key: 'refresh_token', value: refreshToken);
+    }
 
-    // Navigate to home.dart
-    Navigator.pushReplacementNamed(context, '/home');
+    setState(() => _status = "Token(s) saved!");
+  }
+
+  void _handleSave() {
+    _saveTokens().then((_) {
+      Navigator.pushReplacementNamed(context, '/home');
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Enter Access Token")),
+      appBar: AppBar(title: const Text("Enter Tokens")),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             const Text(
-              "Paste your access_token below:",
+              "Access Token (required):",
               style: TextStyle(fontSize: 16),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             TextField(
-              controller: _tokenController,
+              controller: _accessTokenController,
               maxLines: 3,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
-                hintText: 'eyJhbGciOiJIUzI1NiIsInR5...',
+                hintText: 'Paste your access token...',
               ),
             ),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _saveToken,
-              child: const Text("Save Token"),
+            const Text(
+              "Refresh Token (optional):",
+              style: TextStyle(fontSize: 16),
             ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _refreshTokenController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Paste your refresh token...',
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(onPressed: _handleSave, child: const Text("Save")),
             const SizedBox(height: 10),
             Text(_status, style: const TextStyle(color: Colors.green)),
           ],
@@ -61,4 +82,3 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
