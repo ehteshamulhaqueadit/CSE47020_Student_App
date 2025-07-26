@@ -1,0 +1,105 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:cse47020_student_app/api/bracu_auth_manager.dart';
+
+class StudentProfile extends StatefulWidget {
+  const StudentProfile({super.key});
+
+  @override
+  State<StudentProfile> createState() => _StudentProfileState();
+}
+
+class _StudentProfileState extends State<StudentProfile> {
+  Map<String, String?>? _profile = {};
+  File? _imageFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final profile = await BracuAuthManager().getProfile();
+    File? image = await BracuAuthManager().getProfileImage();
+
+    setState(() {
+      _profile = profile;
+      _imageFile = image;
+    });
+  }
+
+  Future<void> _refreshProfile() async {
+    final profile = await BracuAuthManager().fetchProfile();
+    File? image = await BracuAuthManager().fetchProfileImage();
+    setState(() {
+      _profile = profile;
+      _imageFile = image;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _refreshProfile,
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: Colors.grey[300],
+                image: _imageFile != null
+                    ? DecorationImage(
+                        image: FileImage(_imageFile!),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: _imageFile == null
+                  ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                  : null,
+            ),
+
+            const SizedBox(width: 20),
+            Expanded(
+              // WARN: To Future me, if returning null causes issues, no need to make getter and fetcher both return values
+              // WARN: just make only getter to return as non null and fetch to just update and save
+              child: _profile == null
+                  ? Text('Profile Not Available')
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // NOTE: Putting _profile! means saying that _profile will never be null
+                        // NOTE: Sounds like a bad idea of doing this but i spend the whole day just making fetchers to return too, sigh
+                        Text('Name: ${_profile!['fullName'] ?? 'N/A'}'),
+                        Text('Student ID: ${_profile!['studentId'] ?? 'N/A'}'),
+                        Text('Email: ${_profile!['email'] ?? 'N/A'}'),
+                        Text('Program: ${_profile!['program'] ?? 'N/A'}'),
+                        Text(
+                          'Current Semester: ${_profile!['currentSemester'] ?? 'N/A'}',
+                        ),
+                        Text('CGPA: ${_profile!['cgpa'] ?? 'N/A'}'),
+                        Text(
+                          'Earned Credit: ${_profile!['earnedCredit'] ?? 'N/A'}',
+                        ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cse47020_student_app/api/bracu_auth_manager.dart';
-import 'package:cse47020_student_app/tools/prints.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:cse47020_student_app/pages/student_profile.dart';
+import 'token_test.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -11,75 +11,82 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final _storage = const FlutterSecureStorage();
-  String _status = 'Welcome to Home Page';
-  String _accessToken = '';
-  String _refreshToken = '';
+  int selectedIndex = 0;
 
-  void _handleRefreshToken() {
-    setState(() {
-      _status = 'Refreshing token...';
-    });
+  final List<Widget> pages = [TokenTest(), StudentProfile()];
+  final List<String> titles = ['Token Test', 'Student Profile'];
 
-    BracuAuthManager()
-        .refreshToken()
-        .then((_) async {
-          final access =
-              await _storage.read(key: 'access_token') ?? 'No access_token';
-          final refresh =
-              await _storage.read(key: 'refresh_token') ?? 'No refresh_token';
+  Future<void> _confirmLogout(BuildContext context) async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Logout'),
+        content: const Text('Are you sure you want to log out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
 
-          prints('Access Token: $access');
-          prints('Refresh Token: $refresh');
-
-          setState(() {
-            _status = 'Token refresh successful!';
-            _accessToken = access;
-            _refreshToken = refresh;
-          });
-        })
-        .catchError((e) {
-          setState(() {
-            _status = 'Failed to refresh token: $e';
-          });
-        });
+    if (shouldLogout == true) {
+      BracuAuthManager().logout();
+      Navigator.pushReplacementNamed(context, '/login');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Home')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                _status,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _handleRefreshToken,
-                child: const Text("Refresh Token"),
-              ),
-              const SizedBox(height: 30),
-              const Text(
-                "Access Token:",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(_accessToken),
-              const SizedBox(height: 20),
-              const Text(
-                "Refresh Token:",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(_refreshToken),
-            ],
+      appBar: AppBar(
+        title: Text(titles[selectedIndex]),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
       ),
+      drawer: NavigationDrawer(
+        selectedIndex: selectedIndex,
+        onDestinationSelected: (int index) {
+          setState(() {
+            selectedIndex = index;
+          });
+          Navigator.pop(context); // close drawer
+        },
+        children: [
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: Text('Token Test'),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.schedule_outlined),
+            selectedIcon: Icon(Icons.schedule),
+            label: Text('Student Profile'),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+            child: Divider(),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Logout'),
+              onTap: () => _confirmLogout(context),
+            ),
+          ),
+        ],
+      ),
+      body: pages[selectedIndex],
     );
   }
 }

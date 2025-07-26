@@ -1,9 +1,12 @@
-import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:cse47020_student_app/tools/prints.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:path_provider/path_provider.dart';
 
 class BracuAuthManager {
   static final BracuAuthManager _instance = BracuAuthManager._internal();
@@ -17,7 +20,7 @@ class BracuAuthManager {
     Navigator.pushNamed(context, '/login');
   }
 
-  Future<void> logout(BuildContext context) async {
+  Future<void> logout() async {
     const endSessionEndpoint =
         'https://sso.bracu.ac.bd/realms/bracu/protocol/openid-connect/logout';
 
@@ -32,10 +35,12 @@ class BracuAuthManager {
           body: {'client_id': 'slm', 'refresh_token': refreshToken},
         );
 
-        if (response.statusCode == 200) {
+        if (response.statusCode == 204) {
           prints('Logged out from SSO successfully.');
         } else {
-          prints('Failed to logout from SSO. Status: ${response.statusCode}');
+          prints(
+            'Failed to logout from SSO. Status: ${response.statusCode}: ${response.body}',
+          );
         }
       }
 
@@ -43,13 +48,10 @@ class BracuAuthManager {
       await _storage.deleteAll();
 
       // Clear shared preferences
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
+      final SharedPreferencesAsync asyncPrefs = SharedPreferencesAsync();
+      await asyncPrefs.clear();
 
       prints('Local storage cleared.');
-
-      // Navigate to login screen and remove all previous routes
-      // Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     } catch (e) {
       prints('Error during logout: $e');
     }
@@ -142,4 +144,331 @@ class BracuAuthManager {
     final expiryTime = await getTokenExpiryTime();
     return DateTime.now().isAfter(expiryTime);
   }
+
+  Future<Map<String, String?>?> fetchProfile({fromGet = false}) async {
+    final profileUrl = 'https://connect.bracu.ac.bd/api/mds/v1/portfolios';
+
+    // Check internet connection
+    final List<ConnectivityResult> connectivityResult = await (Connectivity()
+        .checkConnectivity());
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      prints('Cant fetch profile info: No Internet Connection');
+      if (fromGet) {
+        return null;
+      }
+      return await getProfile(fromFetch: true);
+      // await prefsWithCache.reloadCache();
+    }
+    final SharedPreferencesAsync asyncPrefs = SharedPreferencesAsync();
+    final accessToken = await _storage.read(key: 'access_token');
+    if (accessToken == null) {
+      prints('Access token not found');
+      if (fromGet) {
+        return null;
+      }
+      return await getProfile(fromFetch: true);
+    }
+
+    final headers = {
+      'Authorization': 'Bearer $accessToken',
+      'X-REALM': 'bracu',
+      'Accept': 'application/json',
+    };
+
+    try {
+      final response = await http.get(Uri.parse(profileUrl), headers: headers);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List && data.isNotEmpty) {
+          final profile = data[0];
+
+          await asyncPrefs.setString('id', profile['id']?.toString() ?? '');
+          await asyncPrefs.setString(
+            'studentId',
+            profile['studentId']?.toString() ?? '',
+          );
+          await asyncPrefs.setString(
+            'program',
+            profile['programOrCourse'] ?? '',
+          );
+          await asyncPrefs.setString(
+            'currentSemester',
+            profile['currentSemester'] ?? '',
+          );
+          await asyncPrefs.setString(
+            'earnedCredit',
+            profile['earnedCredit']?.toString() ?? '',
+          );
+          await asyncPrefs.setString(
+            'photoFilePath',
+            profile['filePath'] ?? '',
+          );
+          await asyncPrefs.setString(
+            'academicType',
+            profile['academicType'] ?? '',
+          );
+          await asyncPrefs.setString(
+            'attemptedCredit',
+            profile['attemptedCredit']?.toString() ?? '',
+          );
+          await asyncPrefs.setString(
+            'enrolledSessionSemesterId',
+            profile['enrolledSessionSemesterId']?.toString() ?? '',
+          );
+          await asyncPrefs.setString(
+            'currentSessionSemesterId',
+            profile['currentSessionSemesterId']?.toString() ?? '',
+          );
+          await asyncPrefs.setString(
+            'enrolledSemester',
+            profile['enrolledSemester'] ?? '',
+          );
+          await asyncPrefs.setString(
+            'departmentName',
+            profile['departmentName'] ?? '',
+          );
+          await asyncPrefs.setString(
+            'studentEmail',
+            profile['studentEmail'] ?? '',
+          );
+          await asyncPrefs.setString('mobileNo', profile['mobileNo'] ?? '');
+          await asyncPrefs.setString('shortCode', profile['shortCode'] ?? '');
+          await asyncPrefs.setString('fullName', profile['fullName'] ?? '');
+          await asyncPrefs.setString('email', profile['studentEmail'] ?? '');
+          await asyncPrefs.setString('cgpa', profile['cgpa']?.toString() ?? '');
+
+          prints('Profile data saved successfully');
+        }
+      } else if (response.statusCode == 400 || response.statusCode == 401) {
+        prints('Token might be expired. Refreshing token...');
+        await refreshToken();
+        await fetchProfile(); // retry
+      } else {
+        prints(
+          'Failed to fetch profile: ${response.statusCode}: ${response.body}',
+        );
+      }
+    } catch (e) {
+      prints('Error fetching profile: $e');
+    }
+    if (fromGet) {
+      return null;
+    }
+    return getProfile(fromFetch: true);
+  }
+
+  Future<Map<String, String?>?> getProfile({bool fromFetch = false}) async {
+    final keys = [
+      'studentId',
+      'fullName',
+      'email',
+      'program',
+      'currentSemester',
+      'cgpa',
+      'earnedCredit',
+    ];
+
+    final SharedPreferencesWithCache prefsWithCache =
+        await SharedPreferencesWithCache.create(
+          cacheOptions: const SharedPreferencesWithCacheOptions(
+            allowList: <String>{
+              'studentId',
+              'fullName',
+              'email',
+              'program',
+              'currentSemester',
+              'cgpa',
+              'earnedCredit',
+            },
+          ),
+        );
+
+    final Map<String, String?> profileData = {};
+
+    // If fetched new data, update cache to avoid stale data
+    if (fromFetch) {
+      await prefsWithCache.reloadCache();
+    }
+    for (final key in keys) {
+      profileData[key] = prefsWithCache.getString(key);
+    }
+
+    bool isIncomplete = profileData.values.any(
+      (value) =>
+          value == null ||
+          // value.isEmpty ||
+          // value == 'null' ||
+          // value == 'undefined' ||
+          value == '',
+    );
+
+    if (isIncomplete) {
+      // If fetched data fails and also getting data fails somehow
+      if (fromFetch) {
+        return null;
+      }
+      prints('Incomplete or missing profile data, refetching...');
+
+      // await prefsWithCache.reloadCache();
+      // prints('Refreshed Shared Pref Cache');
+
+      return await fetchProfile(fromGet: true);
+    }
+    return profileData;
+  }
+
+  Future<File?> getProfileImage({bool fromFetch = false}) async {
+    final String fileName = "profileImage.jpg";
+    final Directory appDir = await getApplicationDocumentsDirectory();
+    final String filePath = '${appDir.path}/$fileName';
+    final File file = File(filePath);
+
+    if (await file.exists()) {
+      prints('Image already exists at: $filePath');
+      return file;
+    }
+
+    if (fromFetch) {
+      return null;
+    } else {
+      return await fetchProfileImage(fromGet: true);
+    }
+  }
+
+  Future<File?> fetchProfileImage({bool fromGet = false}) async {
+    final String fileName = "profileImage.jpg";
+    final Directory appDir = await getApplicationDocumentsDirectory();
+    final String imgPath = '${appDir.path}/$fileName';
+    final File img = File(imgPath);
+
+    // Check internet connection
+    final List<ConnectivityResult> connectivityResult = await (Connectivity()
+        .checkConnectivity());
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      prints('Cant fetch profile image: No Internet Connection');
+      if (fromGet) {
+        return null;
+      } else {
+        prints("Fetching from cache as fallback");
+        return await getProfileImage(fromFetch: true);
+      }
+    }
+
+    final SharedPreferencesWithCache prefsWithCache =
+        await SharedPreferencesWithCache.create(
+          cacheOptions: const SharedPreferencesWithCacheOptions(
+            allowList: <String>{'photoFilePath'},
+          ),
+        );
+
+    final String urlFilePath = prefsWithCache.getString('photoFilePath') ?? "";
+    final String imgUrl =
+        'https://connect.bracu.ac.bd/cdn/img/thumb/${base64.encode(utf8.encode(urlFilePath))}==.jpg';
+
+    try {
+      final response = await http.get(Uri.parse(imgUrl));
+
+      if (response.statusCode == 200) {
+        await img.writeAsBytes(response.bodyBytes);
+        prints('Downloaded and saved image at: ${img.path}');
+        return img;
+      } else {
+        throw Exception(
+          'Failed to download image. Status: ${response.statusCode}: ${response.body}',
+        );
+      }
+    } catch (e) {
+      prints('Error downloading image: $e');
+      rethrow;
+    }
+  }
+
+  Future<String?> fetchPaymentInfo({fromGet = false}) async {
+    final SharedPreferencesAsync asyncPrefs = SharedPreferencesAsync();
+    final String? id = await asyncPrefs.getString('id');
+    final paymentUrl =
+        'https://connect.bracu.ac.bd/api/fin/v1/payment/portfolio/${id}?paymentTypes=ADMISSION_FEE&paymentTypes=REGISTRATION_FEE&paymentTypes=MAKEUP_EXAM_FEE&paymentTypes=DEPARTMENT_CHANGE_FEE&paymentTypes=ACCOMMODATION_FEE&paymentTypes=PRE_UNIVERSITY_FEE&paymentTypes=LIBRARY_FINE_FEE&paymentTypes=SHORT_COURSE_FEE&paymentTypes=CERTIFICATE_COURSE_FEE&paymentTypes=VISITING_STUDENT_ADMISSION_FEE&paymentTypes=ADDED_COURSE_FEE&paymentTypes=OTHER_FEE';
+
+    // Check internet connection
+    final List<ConnectivityResult> connectivityResult = await (Connectivity()
+        .checkConnectivity());
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      prints('Cant fetch payment info: No Internet Connection');
+      if (fromGet) {
+        return null;
+      }
+      return await getPaymentInfo(fromFetch: true);
+      // await prefsWithCache.reloadCache();
+    }
+
+    final accessToken = await _storage.read(key: 'access_token');
+    if (accessToken == null) {
+      prints('Access token not found');
+      if (fromGet) {
+        return null;
+      }
+      return await getPaymentInfo(fromFetch: true);
+    }
+
+    final headers = {
+      'Authorization': 'Bearer $accessToken',
+      'X-REALM': 'bracu',
+      'Accept': 'application/json',
+    };
+
+    try {
+      final response = await http.get(Uri.parse(paymentUrl), headers: headers);
+
+      if (response.statusCode == 200) {
+        await asyncPrefs.setString('SemesterPaymentInfo', response.body);
+        prints('Payment data saved successfully');
+      } else if (response.statusCode == 400 || response.statusCode == 401) {
+        prints('Token might be expired. Refreshing token...');
+        await refreshToken();
+        await fetchPaymentInfo(); // retry
+      } else {
+        prints(
+          'Failed to fetch payment info: ${response.statusCode}: ${response.body}',
+        );
+      }
+    } catch (e) {
+      prints('Error fetching payment info: $e');
+    }
+    if (fromGet) {
+      return null;
+    }
+    return getPaymentInfo(fromFetch: true);
+  }
+
+  Future<String?> getPaymentInfo({bool fromFetch = false}) async {
+    final SharedPreferencesWithCache prefsWithCache =
+        await SharedPreferencesWithCache.create(
+          cacheOptions: const SharedPreferencesWithCacheOptions(
+            allowList: <String>{'SemesterPaymentInfo'},
+          ),
+        );
+
+    if (fromFetch) {
+      await prefsWithCache.reloadCache();
+    }
+    final String paymentInfo =
+        prefsWithCache.getString('SemesterPaymentInfo') ?? '';
+
+    if (paymentInfo == '') {
+      if (fromFetch) {
+        return null;
+      }
+      prints('Incomplete or missing payment data, refetching...');
+
+      // await prefsWithCache.reloadCache();
+      // prints('Refreshed Shared Pref Cache');
+
+      return await fetchPaymentInfo(fromGet: true);
+    }
+    return paymentInfo;
+  }
+
+  Future<void> fetchAdvisingInfo() async {}
+  Future<void> getAdvisingInfo() async {}
 }
