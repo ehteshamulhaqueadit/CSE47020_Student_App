@@ -10,6 +10,7 @@ Install the required Python packages:
 
 ```bash
 pip install bs4 cloudscraper lxml mysql-connector-python pdfplumber "fastapi[standard-no-fastapi-cloud-cli]" uvicorn sqlalchemy pydantic
+```
 
 Optional (in case `mysql-connector` doesn’t work):
 
