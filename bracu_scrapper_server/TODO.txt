@@ -1,0 +1,8 @@
+do transport fare manually,create script that puts values
+ create fastapi backend endpoints
+ create simple static html that fetches endpoints
+
+redo the db and FASTAPI part for academic-dates so that we can filter by semester
+PS: Just add a semester colm
+
+Add a scrapper that checks every 6 hours for rss.xml and get new posts
