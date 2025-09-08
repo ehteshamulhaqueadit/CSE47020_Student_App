@@ -692,4 +692,92 @@ class BracuAuthManager {
     if (fromGet) return null;
     return getStudentSchedule(fromFetch: true);
   }
+
+    Future<String?> getAttendanceInfo({bool fromFetch = false}) async {
+    final SharedPreferencesWithCache prefsWithCache =
+        await SharedPreferencesWithCache.create(
+          cacheOptions: const SharedPreferencesWithCacheOptions(
+            allowList: <String>{'attendance'},
+          ),
+        );
+
+    if (fromFetch) {
+      await prefsWithCache.reloadCache();
+    }
+
+    final String attendanceJson =
+        prefsWithCache.getString('attendance') ?? '';
+
+    if (attendanceJson == '') {
+      if (fromFetch) return null;
+
+      prints('Incomplete or missing attendance data, refetching...');
+      return await fetchStudentSchedule(fromGet: true);
+    }
+    return attendanceJson;
+  }
+
+  Future<String?> fetchAttendanceInfo({bool fromGet = false}) async {
+    final SharedPreferencesAsync asyncPrefs = SharedPreferencesAsync();
+    String? id = await asyncPrefs.getString('id');
+
+    // Get necessary info so that it can fetch the corrent url
+    while (id == null) {
+      prints('ID not found, fetching profile...');
+      await fetchProfile();
+      id = await asyncPrefs.getString('id');
+    }
+
+    final String url =
+        'https://connect.bracu.ac.bd/api/exc/v1/student-courses/{id}/current-semester-attendance';
+
+    // Check internet connection
+    final List<ConnectivityResult> connectivityResult = await Connectivity()
+        .checkConnectivity();
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      prints('Cannot fetch schedule: No Internet Connection');
+      if (fromGet) return null;
+      return await getAttendanceInfo(fromFetch: true);
+    }
+
+    final accessToken = await _storage.read(key: 'access_token');
+    if (accessToken == null) {
+      prints('Access token not found');
+      if (fromGet) return null;
+      return await getAttendanceInfo(fromFetch: true);
+    }
+
+    final headers = {
+      'Authorization': 'Bearer $accessToken',
+      'X-REALM': 'bracu',
+      'Accept': 'application/json',
+    };
+
+    try {
+      final response = await http.get(Uri.parse(url), headers: headers);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // Save as JSON string in SharedPreferences
+        await asyncPrefs.setString('attendance', jsonEncode(data));
+        prints('Student attendance info saved successfully');
+        return getAttendanceInfo(fromFetch: true);
+      // } else if (response.statusCode == 400 || response.statusCode == 401) {
+      } else if (response.statusCode == 401) {
+        prints('Token might be expired. Refreshing token...');
+        await refreshToken();
+        return await fetchAttendanceInfo(); // retry
+      } else {
+        prints(
+          'Failed to fetch attendance info: ${response.statusCode}: ${response.body}',
+        );
+      }
+    } catch (e) {
+      prints('Error fetching attendance info: $e');
+    }
+
+    if (fromGet) return null;
+    return getAttendanceInfo(fromFetch: true);
+  }
 }
