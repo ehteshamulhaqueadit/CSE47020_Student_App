@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required To set alarms -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <application
         android:label="cse47020_student_app"
         android:name="${applicationName}"

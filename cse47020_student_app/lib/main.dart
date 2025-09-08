@@ -9,7 +9,9 @@ void main() async {
 
   // Check login status before runApp
   final bool loggedIn = await BracuAuthManager().isLoggedIn();
-
+  // Every widget rebuild will be in console
+  // https://dev.to/alaminkarno/why-your-flutter-app-rebuilds-too-much-and-how-to-fix-it-bpi
+  // debugPrintRebuildDirtyWidgets = true;
   runApp(
     MaterialApp(
       initialRoute: loggedIn ? '/home' : '/login',

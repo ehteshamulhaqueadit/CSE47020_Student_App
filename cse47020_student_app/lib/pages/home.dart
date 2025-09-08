@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cse47020_student_app/api/bracu_auth_manager.dart';
 import 'package:cse47020_student_app/pages/student_profile.dart';
+import 'package:cse47020_student_app/pages/student_schedule.dart';
+import 'package:cse47020_student_app/pages/exam_schedule.dart';
+import 'package:cse47020_student_app/pages/alarms.dart';
+import 'package:cse47020_student_app/pages/share_schedule.dart';
+import 'package:cse47020_student_app/pages/scan_schedule.dart';
+import 'package:cse47020_student_app/pages/friend_schedule.dart';
 import 'token_test.dart';
 
 class HomePage extends StatefulWidget {
@@ -13,8 +19,26 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int selectedIndex = 0;
 
-  final List<Widget> pages = [TokenTest(), StudentProfile()];
-  final List<String> titles = ['Token Test', 'Student Profile'];
+  final List<Widget> pages = [
+    TokenTest(),
+    StudentProfile(),
+    StudentSchedule(),
+    ExamSchedule(),
+    AlarmPage(),
+    ShareSchedulePage(),
+    ScanSchedulePage(),
+    FriendSchedulePage(),
+  ];
+  final List<String> titles = [
+    'Token Test',
+    'Student Profile',
+    'Student Schedule',
+    'Exam Schedule',
+    'Set Alarms',
+    'Share Class Schedule',
+    'Scan Schedule',
+    'Friends Availablity',
+  ];
 
   Future<void> _confirmLogout(BuildContext context) async {
     final shouldLogout = await showDialog<bool>(
@@ -71,6 +95,36 @@ class _HomePageState extends State<HomePage> {
             icon: Icon(Icons.schedule_outlined),
             selectedIcon: Icon(Icons.schedule),
             label: Text('Student Profile'),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.schedule_outlined),
+            selectedIcon: Icon(Icons.schedule),
+            label: Text('Student Schedule'),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.schedule_outlined),
+            selectedIcon: Icon(Icons.schedule),
+            label: Text('Exam Schedule'),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.schedule_outlined),
+            selectedIcon: Icon(Icons.schedule),
+            label: Text('Set Alarms'),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.schedule_outlined),
+            selectedIcon: Icon(Icons.schedule),
+            label: Text('Share Class Schedule'),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.schedule_outlined),
+            selectedIcon: Icon(Icons.schedule),
+            label: Text('Scan Schedule Page'),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.schedule_outlined),
+            selectedIcon: Icon(Icons.schedule),
+            label: Text('Friends Availablity'),
           ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 28, vertical: 8),

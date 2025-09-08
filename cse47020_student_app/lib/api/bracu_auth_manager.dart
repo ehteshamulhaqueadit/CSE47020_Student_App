@@ -239,6 +239,7 @@ class BracuAuthManager {
           await asyncPrefs.setString('cgpa', profile['cgpa']?.toString() ?? '');
 
           prints('Profile data saved successfully');
+          return getProfile(fromFetch: true);
         }
       } else if (response.statusCode == 400 || response.statusCode == 401) {
         prints('Token might be expired. Refreshing token...');
@@ -423,6 +424,7 @@ class BracuAuthManager {
       if (response.statusCode == 200) {
         await asyncPrefs.setString('SemesterPaymentInfo', response.body);
         prints('Payment data saved successfully');
+        return getPaymentInfo(fromFetch: true);
       } else if (response.statusCode == 400 || response.statusCode == 401) {
         prints('Token might be expired. Refreshing token...');
         await refreshToken();
@@ -469,6 +471,225 @@ class BracuAuthManager {
     return paymentInfo;
   }
 
-  Future<void> fetchAdvisingInfo() async {}
-  Future<void> getAdvisingInfo() async {}
+  Future<Map<String, String?>?> fetchAdvisingInfo({fromGet = false}) async {
+    final SharedPreferencesAsync asyncPrefs = SharedPreferencesAsync();
+    final String? studentId = await asyncPrefs.getString('studentId');
+    final advisingUrl =
+        'https://connect.bracu.ac.bd/api/adv/v1/advising/${studentId}/active-advising-sessions?advisingPhase=PHASE_ONE&advisingPhase=PHASE_TWO&advisingPhase=SELF_REGISTRATION';
+    // Check internet connection
+    final List<ConnectivityResult> connectivityResult = await (Connectivity()
+        .checkConnectivity());
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      prints('Cant fetch payment info: No Internet Connection');
+      if (fromGet) {
+        return null;
+      }
+      return await getAdvisingInfo(fromFetch: true);
+      // await prefsWithCache.reloadCache();
+    }
+
+    final accessToken = await _storage.read(key: 'access_token');
+    if (accessToken == null) {
+      prints('Access token not found');
+      if (fromGet) {
+        return null;
+      }
+      return await getAdvisingInfo(fromFetch: true);
+    }
+
+    final headers = {
+      'Authorization': 'Bearer $accessToken',
+      'X-REALM': 'bracu',
+      'Accept': 'application/json',
+    };
+
+    try {
+      final response = await http.get(Uri.parse(advisingUrl), headers: headers);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body)[0];
+        await asyncPrefs.setString('advisingStartDate', data['startDate']);
+        await asyncPrefs.setString('advisingEndDate', data['endDate']);
+        await asyncPrefs.setString(
+          'activeSemesterSessionId',
+          data['activeSemesterSessionId'].toString(),
+        );
+        await asyncPrefs.setString('advisingPhase', data['advisingPhase']);
+        await asyncPrefs.setString(
+          'totalCredit',
+          data['totalCredit'].toString(),
+        );
+        await asyncPrefs.setString(
+          'earnedCredit',
+          data['earnedCredit'].toString(),
+        );
+        await asyncPrefs.setString(
+          'noOfSemester',
+          data['noOfSemester'].toString(),
+        );
+        prints('Advising data saved successfully');
+        return getAdvisingInfo(fromFetch: true);
+      } else if (response.statusCode == 400 || response.statusCode == 401) {
+        prints('Token might be expired. Refreshing token...');
+        await refreshToken();
+        await fetchAdvisingInfo(); // retry
+      } else {
+        prints(
+          'Failed to fetch advising info: ${response.statusCode}: ${response.body}',
+        );
+      }
+    } catch (e) {
+      prints('Error fetching advising info: $e');
+    }
+    if (fromGet) {
+      return null;
+    }
+    return getAdvisingInfo(fromFetch: true);
+  }
+
+  Future<Map<String, String?>?> getAdvisingInfo({
+    bool fromFetch = false,
+  }) async {
+    final keys = [
+      'advisingStartDate',
+      'advisingEndDate',
+      'activeSemesterSessionId',
+      'advisingPhase',
+      'totalCredit',
+      'earnedCredit',
+      'noOfSemester',
+    ];
+    final SharedPreferencesWithCache prefsWithCache =
+        await SharedPreferencesWithCache.create(
+          cacheOptions: const SharedPreferencesWithCacheOptions(
+            allowList: <String>{
+              'advisingStartDate',
+              'advisingEndDate',
+              'activeSemesterSessionId',
+              'advisingPhase',
+              'totalCredit',
+              'earnedCredit',
+              'noOfSemester',
+            },
+          ),
+        );
+
+    final Map<String, String?> advisingData = {};
+    if (fromFetch) {
+      await prefsWithCache.reloadCache();
+    }
+    for (final key in keys) {
+      advisingData[key] = prefsWithCache.getString(key);
+    }
+
+    bool isIncomplete = advisingData.values.any(
+      (value) =>
+          value == null ||
+          // value.isEmpty ||
+          // value == 'null' ||
+          // value == 'undefined' ||
+          value == '',
+    );
+    if (isIncomplete) {
+      // If fetched data fails and also getting data fails somehow
+      if (fromFetch) {
+        return null;
+      }
+      prints('Incomplete or missing advising data, refetching...');
+
+      // await prefsWithCache.reloadCache();
+      // prints('Refreshed Shared Pref Cache');
+
+      return await fetchAdvisingInfo(fromGet: true);
+    }
+    return advisingData;
+  }
+
+  Future<String?> getStudentSchedule({bool fromFetch = false}) async {
+    final SharedPreferencesWithCache prefsWithCache =
+        await SharedPreferencesWithCache.create(
+          cacheOptions: const SharedPreferencesWithCacheOptions(
+            allowList: <String>{'StudentSchedule'},
+          ),
+        );
+
+    if (fromFetch) {
+      await prefsWithCache.reloadCache();
+    }
+
+    final String scheduleJson =
+        prefsWithCache.getString('StudentSchedule') ?? '';
+
+    if (scheduleJson == '') {
+      if (fromFetch) return null;
+
+      prints('Incomplete or missing schedule data, refetching...');
+      return await fetchStudentSchedule(fromGet: true);
+    }
+    return scheduleJson;
+  }
+
+  Future<String?> fetchStudentSchedule({bool fromGet = false}) async {
+    final SharedPreferencesAsync asyncPrefs = SharedPreferencesAsync();
+    String? id = await asyncPrefs.getString('id');
+
+    // Get necessary info so that it can fetch the corrent url
+    while (id == null) {
+      prints('ID not found, fetching profile...');
+      await fetchProfile();
+      id = await asyncPrefs.getString('id');
+    }
+
+    final String url =
+        'https://connect.bracu.ac.bd/api/adv/v1/student-courses/schedules?studentPortfolioId=$id';
+
+    // Check internet connection
+    final List<ConnectivityResult> connectivityResult = await Connectivity()
+        .checkConnectivity();
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      prints('Cannot fetch schedule: No Internet Connection');
+      if (fromGet) return null;
+      return await getStudentSchedule(fromFetch: true);
+    }
+
+    final accessToken = await _storage.read(key: 'access_token');
+    if (accessToken == null) {
+      prints('Access token not found');
+      if (fromGet) return null;
+      return await getStudentSchedule(fromFetch: true);
+    }
+
+    final headers = {
+      'Authorization': 'Bearer $accessToken',
+      'X-REALM': 'bracu',
+      'Accept': 'application/json',
+    };
+
+    try {
+      final response = await http.get(Uri.parse(url), headers: headers);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // Save as JSON string in SharedPreferences
+        await asyncPrefs.setString('StudentSchedule', jsonEncode(data));
+        prints('Student schedule saved successfully');
+        return getStudentSchedule(fromFetch: true);
+      // } else if (response.statusCode == 400 || response.statusCode == 401) {
+      } else if (response.statusCode == 401) {
+        prints('Token might be expired. Refreshing token...');
+        await refreshToken();
+        return await fetchStudentSchedule(); // retry
+      } else {
+        prints(
+          'Failed to fetch schedule: ${response.statusCode}: ${response.body}',
+        );
+      }
+    } catch (e) {
+      prints('Error fetching student schedule: $e');
+    }
+
+    if (fromGet) return null;
+    return getStudentSchedule(fromFetch: true);
+  }
 }

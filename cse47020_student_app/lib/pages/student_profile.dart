@@ -56,6 +56,7 @@ class _StudentProfileState extends State<StudentProfile> {
     });
   }
 
+  // NOTE: Might causes issues for students who are bisemester for e.g Law Students
   String formatSemester(int semesterSessionId) {
     final year = semesterSessionId ~/ 10;
     final semesterCode = semesterSessionId % 10;

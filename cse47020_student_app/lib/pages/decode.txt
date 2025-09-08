@@ -1,0 +1,15 @@
+import 'dart:convert';
+import 'dart:io';
+
+  void _compress(String json) {
+    final enCodedJson = utf8.encode(json);
+    final gZipJson = gzip.encode(enCodedJson);
+    final base64Json = base64.encode(gZipJson);
+
+    final decodeBase64Json = base64.decode(base64Json);
+    final decodegZipJson = gzip.decode(decodeBase64Json);
+    final originalJson = utf8.decode(decodegZipJson);
+    }
+
+Normal JSON entry for one person
+{"name":"AKID ANIS","id":"22241087","courses":[{"courseCode":"CSE391","schedule":[{"day":"SUNDAY","startTime":"11:00:00","endTime":"13:50:00"}]},{"courseCode":"CSE470","schedule":[{"day":"SATURDAY","startTime":"08:00:00","endTime":"09:20:00"},{"day":"THURSDAY","startTime":"08:00:00","endTime":"09:20:00"}]},{"courseCode":"CSE331","schedule":[{"day":"MONDAY","startTime":"08:00:00","endTime":"09:20:00"},{"day":"WEDNESDAY","startTime":"08:00:00","endTime":"09:20:00"}]},{"courseCode":"CSE391L","schedule":[{"day":"TUESDAY","startTime":"14:00:00","endTime":"16:50:00"}]}]}
