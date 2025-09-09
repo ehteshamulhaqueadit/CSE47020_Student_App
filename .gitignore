@@ -47,4 +47,4 @@ app.*.map.json
 
 **/exam schedule pdfs/**
 **/__pycache__/**
-
+**/venv/**
