@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cse47020_student_app/api/bracu_auth_manager.dart';
 import 'package:cse47020_student_app/model/payment_info.dart';
-import 'package:cse47020_student_app/model/attendance_info.dart';
-import 'package:cse47020_student_app/tools/prints.dart';
 
 class StudentProfile extends StatefulWidget {
   const StudentProfile({super.key});
@@ -17,7 +15,6 @@ class _StudentProfileState extends State<StudentProfile> {
   Map<String, String?>? _profile = {};
   File? _imageFile;
   List<PaymentInfo> _payments = [];
-  List<AttendanceInfo> _attendances = [];
 
   @override
   void initState() {
@@ -35,19 +32,10 @@ class _StudentProfileState extends State<StudentProfile> {
         .map((item) => PaymentInfo.fromJson(item))
         .toList();
 
-    final List<dynamic> attendanceJson = jsonDecode(
-      await BracuAuthManager().getAttendanceInfo() ?? '[]',
-    );
-    prints(attendanceJson);
-    final attendances = attendanceJson
-        .map((e) => AttendanceInfo.fromJson(e))
-        .toList();
-
     setState(() {
       _profile = profile;
       _imageFile = image;
       _payments = payments;
-      _attendances = attendances;
     });
   }
 
@@ -151,37 +139,6 @@ class _StudentProfileState extends State<StudentProfile> {
                         ),
                 ),
               ],
-            ),
-
-            const SizedBox(height: 24),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 200),
-              child: Card(
-                color: Colors.blue[50],
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: ListView.builder(
-                    itemCount: _attendances.length,
-                    itemBuilder: (context, index) {
-                      final att = _attendances[index];
-                      return ListTile(
-                        leading: const Icon(Icons.class_, color: Colors.blue),
-                        title: Text(
-                          '${att.courseCode} - ${att.courseName}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(
-                          'Attended: ${att.attend}, Missed: ${att.missed}, '
-                          'Remaining: ${att.remaining}, Total: ${att.totalClasses}',
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
             ),
 
             const SizedBox(height: 24),

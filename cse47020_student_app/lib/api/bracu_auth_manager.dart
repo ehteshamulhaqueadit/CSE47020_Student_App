@@ -712,7 +712,7 @@ class BracuAuthManager {
       if (fromFetch) return null;
 
       prints('Incomplete or missing attendance data, refetching...');
-      return await fetchStudentSchedule(fromGet: true);
+      return await fetchAttendanceInfo(fromGet: true);
     }
     return attendanceJson;
   }
@@ -729,7 +729,9 @@ class BracuAuthManager {
     }
 
     final String url =
-        'https://connect.bracu.ac.bd/api/exc/v1/student-courses/{id}/current-semester-attendance';
+        'https://connect.bracu.ac.bd/api/exc/v1/student-courses/${id}/current-semester-attendance';
+
+    prints(url);
 
     // Check internet connection
     final List<ConnectivityResult> connectivityResult = await Connectivity()
