@@ -8,6 +8,7 @@ import 'package:cse47020_student_app/pages/share_schedule.dart';
 import 'package:cse47020_student_app/pages/scan_schedule.dart';
 import 'package:cse47020_student_app/pages/friend_schedule.dart';
 import 'package:cse47020_student_app/pages/advising_info.dart';
+import 'package:cse47020_student_app/pages/library.dart';
 import 'token_test.dart';
 
 class HomePage extends StatefulWidget {
@@ -30,6 +31,7 @@ class _HomePageState extends State<HomePage> {
     ScanSchedulePage(),
     FriendSchedulePage(),
     AdvisingInfoPage(),
+    LibraryPage(),
   ];
   final List<String> titles = [
     'Token Test',
@@ -41,6 +43,7 @@ class _HomePageState extends State<HomePage> {
     'Scan Schedule',
     'Friends Availablity',
     'Advising Reminder',
+    'Library',
   ];
 
   Future<void> _confirmLogout(BuildContext context) async {
@@ -133,6 +136,11 @@ class _HomePageState extends State<HomePage> {
             icon: Icon(Icons.schedule_outlined),
             selectedIcon: Icon(Icons.schedule),
             label: Text('Advising Reminder'),
+          ),
+          const NavigationDrawerDestination(
+            icon: Icon(Icons.local_library_outlined),
+            selectedIcon: Icon(Icons.local_library),
+            label: Text('Library'),
           ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 28, vertical: 8),
