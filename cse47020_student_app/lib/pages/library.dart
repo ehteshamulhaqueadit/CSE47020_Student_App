@@ -536,9 +536,31 @@ class _LibraryPageState extends State<LibraryPage>
       loginMessage: _loginMessage,
       onRenewAll: _renewAllBooks,
       onLogout: _logout,
+      onRefresh: _refreshBooks,
       onRenewBook: _renewBook,
       onShowDetails: _showBookDetails,
     );
+  }
+
+  Future<void> _refreshBooks() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _controller.reload();
+      await Future.delayed(const Duration(seconds: 2));
+      await _parseBorrowedBooks(showSuccessMessage: false);
+      _showSnackBar('Books refreshed', isError: false);
+    } catch (e) {
+      _showSnackBar('Error refreshing: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _showBookDetails(BorrowedBook book) {
@@ -570,89 +592,80 @@ class _LibraryPageState extends State<LibraryPage>
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            if (_isLoggedIn) {
-              await _controller.reload();
-              await Future.delayed(const Duration(seconds: 2));
-              await _parseBorrowedBooks(showSuccessMessage: false);
-            }
-          },
-          child: Stack(
-            children: [
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    physics: const ClampingScrollPhysics(),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight,
-                      ),
-                      child: FadeTransition(
-                        opacity: _fadeAnimation,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 16,
-                          ),
-                          child: _isLoggedIn
-                              ? _buildBorrowedBooksView()
-                              : Center(
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 360,
-                                    ),
-                                    child: _buildLoginForm(),
-                                  ),
-                                ),
-                        ),
-                      ),
+        child: Stack(
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
                     ),
-                  );
-                },
-              ),
-              if (_isLoading)
-                Container(
-                  color: Colors.black.withOpacity(0.3),
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.blue.shade600,
-                            ),
-                            strokeWidth: 3,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Loading...',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey.shade800,
-                            ),
-                          ),
-                        ],
+                    child: FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 16,
+                        ),
+                        child: _isLoggedIn
+                            ? _buildBorrowedBooksView()
+                            : Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 360,
+                                  ),
+                                  child: _buildLoginForm(),
+                                ),
+                              ),
                       ),
                     ),
                   ),
+                );
+              },
+            ),
+            if (_isLoading)
+              Container(
+                color: Colors.black.withOpacity(0.3),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.blue.shade600,
+                          ),
+                          strokeWidth: 3,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Loading...',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );

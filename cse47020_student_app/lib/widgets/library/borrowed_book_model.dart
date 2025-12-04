@@ -38,6 +38,20 @@ class BorrowedBook {
     }
   }
 
+  /// Get the number of renewals remaining
+  int get renewalsLeft {
+    try {
+      // Parse "21 of 30" format - extract first number
+      final match = RegExp(r'(\d+)').firstMatch(renewalsRemaining);
+      if (match != null) {
+        return int.tryParse(match.group(1) ?? '0') ?? 0;
+      }
+      return 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
   /// Parse days left until due date
   int get daysLeft {
     try {

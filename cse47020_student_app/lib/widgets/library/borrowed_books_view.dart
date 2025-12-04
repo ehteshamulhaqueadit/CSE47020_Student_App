@@ -7,6 +7,7 @@ class BorrowedBooksView extends StatelessWidget {
   final String loginMessage;
   final VoidCallback onRenewAll;
   final VoidCallback onLogout;
+  final VoidCallback onRefresh;
   final Function(BorrowedBook) onRenewBook;
   final Function(BorrowedBook) onShowDetails;
 
@@ -16,6 +17,7 @@ class BorrowedBooksView extends StatelessWidget {
     required this.loginMessage,
     required this.onRenewAll,
     required this.onLogout,
+    required this.onRefresh,
     required this.onRenewBook,
     required this.onShowDetails,
   });
@@ -40,6 +42,13 @@ class BorrowedBooksView extends StatelessWidget {
               )
             else
               const SizedBox.shrink(),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: onRefresh,
+              color: Colors.blue,
+              iconSize: 28,
+              tooltip: 'Refresh',
+            ),
             ElevatedButton.icon(
               icon: const Icon(Icons.logout),
               label: const Text('Logout'),
