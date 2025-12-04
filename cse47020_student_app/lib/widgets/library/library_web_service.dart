@@ -84,6 +84,11 @@ class LibraryWebService {
     try {
       const checkScript = '''
         (function() {
+          // Wait for DOM to be ready
+          if (document.readyState !== 'complete') {
+            return JSON.stringify({success: false, message: 'Page still loading', pending: true});
+          }
+          
           var bodyId = document.body.getAttribute('id') || document.body.getAttribute('ID') || '';
           var bodyClass = document.body.className || '';
           bodyId = bodyId.toLowerCase();
@@ -119,6 +124,11 @@ class LibraryWebService {
                 : errorAlert.textContent.trim();
             }
             return JSON.stringify({success: false, message: errorMsg, bodyId: bodyId});
+          }
+          
+          // If page is still loading/transitioning, return pending status
+          if (!bodyId && !bodyClass) {
+            return JSON.stringify({success: false, message: 'Page loading...', pending: true});
           }
           
           return JSON.stringify({
@@ -273,16 +283,166 @@ class LibraryWebService {
       ''';
 
       final result = await controller.runJavaScriptReturningResult(renewScript);
-      final resultStr = result.toString();
+      String resultStr = result.toString();
 
-      if (resultStr.contains('success":true') ||
-          resultStr.contains('success:true')) {
-        return {'success': true};
-      } else {
-        return {'success': false, 'message': 'Failed to find renew link'};
+      // Clean up the JSON string
+      String jsonStr = resultStr;
+      if (jsonStr.startsWith('"') && jsonStr.endsWith('"')) {
+        jsonStr = jsonStr.substring(1, jsonStr.length - 1);
+        jsonStr = jsonStr.replaceAll(r'\', '');
+      }
+
+      // Try to parse as JSON
+      try {
+        final parsed = json.decode(jsonStr);
+        return parsed;
+      } catch (e) {
+        // If JSON parsing fails but contains success indicators, assume success
+        if (resultStr.contains('success') &&
+            (resultStr.contains('true') || resultStr.contains('Clicked'))) {
+          return {'success': true, 'message': 'Renew link clicked'};
+        }
+        return {
+          'success': false,
+          'message': 'Failed to parse result: $resultStr',
+        };
       }
     } catch (e) {
       return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> verifyRenewal(
+    WebViewController controller,
+    BorrowedBook book,
+  ) async {
+    try {
+      final verifyScript =
+          '''
+        (function() {
+          // Check if we're on the user page with checkout table
+          var checkoutTable = document.getElementById('checkoutst');
+          if (!checkoutTable) {
+            return JSON.stringify({
+              success: false, 
+              message: 'Checkout table not found',
+              pending: true
+            });
+          }
+          
+          // Find the row for this specific item
+          var rows = checkoutTable.querySelectorAll('tbody tr');
+          var itemRow = null;
+          
+          rows.forEach(function(row) {
+            var renewLink = row.querySelector('a[href*="item=${book.itemId}"]');
+            if (renewLink) {
+              itemRow = row;
+            }
+          });
+          
+          if (!itemRow) {
+            return JSON.stringify({
+              success: false,
+              message: 'Item row not found',
+              pending: true
+            });
+          }
+          
+          // Check for "Renewed!" success label - primary indicator
+          var renewedLabel = itemRow.querySelector('.blabel.label-success');
+          var hasRenewedLabel = renewedLabel && 
+                                (renewedLabel.textContent.includes('Renewed') || 
+                                 renewedLabel.textContent.includes('renewed'));
+          
+          // Also check for success messages in the renew cell
+          var renewCell = itemRow.querySelector('.renew');
+          var renewCellHasSuccess = renewCell && 
+                                    renewCell.querySelector('.label-success');
+          
+          // Check for general success alert on the page
+          var successAlert = document.querySelector('.alert-success');
+          var hasSuccessAlert = successAlert && 
+                                (successAlert.textContent.toLowerCase().includes('renewed') ||
+                                 successAlert.textContent.toLowerCase().includes('success'));
+          
+          if (hasRenewedLabel || renewCellHasSuccess || hasSuccessAlert) {
+            // Get updated renewal count
+            var renewalsEl = itemRow.querySelector('.renewals');
+            var renewalsText = 'N/A';
+            if (renewalsEl) {
+              var fullText = renewalsEl.textContent.trim();
+              var match = fullText.match(/(\\d+)\\s+of\\s+(\\d+)/);
+              if (match) {
+                renewalsText = match[1] + ' of ' + match[2];
+              }
+            }
+            
+            return JSON.stringify({
+              success: true,
+              message: 'Book renewed successfully',
+              renewalsRemaining: renewalsText
+            });
+          }
+          
+          // Check for error messages or alerts
+          var alertError = itemRow.querySelector('.alert-error, .alert-danger');
+          if (alertError) {
+            return JSON.stringify({
+              success: false,
+              message: alertError.textContent.trim()
+            });
+          }
+          
+          // Check for "too many renewals" message
+          var renewCell = itemRow.querySelector('.renew');
+          if (renewCell) {
+            var cellText = renewCell.textContent.toLowerCase();
+            if (cellText.includes('not renewed') || 
+                cellText.includes('cannot be renewed') ||
+                cellText.includes('no renewals')) {
+              return JSON.stringify({
+                success: false,
+                message: 'Item cannot be renewed: no renewals remaining'
+              });
+            }
+          }
+          
+          // Check for general alert messages on the page
+          var pageAlert = document.querySelector('.alert-warning, .alert-info');
+          if (pageAlert) {
+            var alertText = pageAlert.textContent.trim();
+            if (alertText.includes('not renewed') || alertText.includes('error')) {
+              return JSON.stringify({
+                success: false,
+                message: alertText
+              });
+            }
+          }
+          
+          // If no clear success or failure, return pending
+          return JSON.stringify({
+            success: false,
+            message: 'Renewal status unclear',
+            pending: true
+          });
+        })();
+      ''';
+
+      final result = await controller.runJavaScriptReturningResult(
+        verifyScript,
+      );
+      String resultStr = result.toString();
+
+      String jsonStr = resultStr;
+      if (jsonStr.startsWith('"') && jsonStr.endsWith('"')) {
+        jsonStr = jsonStr.substring(1, jsonStr.length - 1);
+        jsonStr = jsonStr.replaceAll(r'\', '');
+      }
+
+      return json.decode(jsonStr);
+    } catch (e) {
+      return {'success': false, 'message': 'Error verifying renewal: $e'};
     }
   }
 
@@ -315,16 +475,130 @@ class LibraryWebService {
       final result = await controller.runJavaScriptReturningResult(
         renewAllScript,
       );
-      final resultStr = result.toString();
+      String resultStr = result.toString();
 
-      if (resultStr.contains('success":true') ||
-          resultStr.contains('success:true')) {
-        return {'success': true};
-      } else {
-        return {'success': false, 'message': 'Failed to find renew all button'};
+      // Clean up the JSON string
+      String jsonStr = resultStr;
+      if (jsonStr.startsWith('"') && jsonStr.endsWith('"')) {
+        jsonStr = jsonStr.substring(1, jsonStr.length - 1);
+        jsonStr = jsonStr.replaceAll(r'\', '');
+      }
+
+      // Try to parse as JSON
+      try {
+        final parsed = json.decode(jsonStr);
+        return parsed;
+      } catch (e) {
+        // If JSON parsing fails but contains success indicators, assume success
+        if (resultStr.contains('success') &&
+            (resultStr.contains('true') ||
+                resultStr.contains('Clicked') ||
+                resultStr.contains('Submitted'))) {
+          return {'success': true, 'message': 'Renew all clicked'};
+        }
+        return {
+          'success': false,
+          'message': 'Failed to parse result: $resultStr',
+        };
       }
     } catch (e) {
       return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> verifyRenewAll(
+    WebViewController controller,
+  ) async {
+    try {
+      const verifyScript = '''
+        (function() {
+          var checkoutTable = document.getElementById('checkoutst');
+          if (!checkoutTable) {
+            return JSON.stringify({
+              success: false,
+              message: 'Checkout table not found',
+              pending: true
+            });
+          }
+          
+          var rows = checkoutTable.querySelectorAll('tbody tr');
+          var renewedCount = 0;
+          var failedCount = 0;
+          var totalCount = rows.length;
+          
+          rows.forEach(function(row) {
+            var renewedLabel = row.querySelector('.blabel.label-success');
+            if (renewedLabel && renewedLabel.textContent.includes('Renewed')) {
+              renewedCount++;
+            }
+            
+            var renewCell = row.querySelector('.renew');
+            if (renewCell) {
+              var cellText = renewCell.textContent.toLowerCase();
+              if (cellText.includes('not renewed') || 
+                  cellText.includes('cannot be renewed')) {
+                failedCount++;
+              }
+            }
+          });
+          
+          // Check for general success message
+          var successAlert = document.querySelector('.alert-success, .alert-info');
+          if (successAlert && successAlert.textContent.includes('renewed')) {
+            return JSON.stringify({
+              success: true,
+              message: 'All books renewed successfully',
+              renewedCount: renewedCount,
+              totalCount: totalCount
+            });
+          }
+          
+          // If we see renewed labels, consider it a success
+          if (renewedCount > 0) {
+            var message = renewedCount + ' of ' + totalCount + ' books renewed';
+            if (failedCount > 0) {
+              message += ' (' + failedCount + ' failed)';
+            }
+            return JSON.stringify({
+              success: true,
+              message: message,
+              renewedCount: renewedCount,
+              failedCount: failedCount,
+              totalCount: totalCount
+            });
+          }
+          
+          // Check for error messages
+          var errorAlert = document.querySelector('.alert-error, .alert-danger');
+          if (errorAlert) {
+            return JSON.stringify({
+              success: false,
+              message: errorAlert.textContent.trim()
+            });
+          }
+          
+          return JSON.stringify({
+            success: false,
+            message: 'Unable to verify renewal status',
+            pending: true
+          });
+        })();
+      ''';
+
+      final result = await controller.runJavaScriptReturningResult(
+        verifyScript,
+      );
+      String resultStr = result.toString();
+
+      String jsonStr = resultStr;
+      if (jsonStr.startsWith('"') && jsonStr.endsWith('"')) {
+        jsonStr = jsonStr.substring(1, jsonStr.length - 1);
+        jsonStr = jsonStr.replaceAll(r'\', '');
+      }
+
+      return json.decode(jsonStr);
+    } catch (e) {
+      return {'success': false, 'message': 'Error verifying renew all: $e'};
     }
   }
 
