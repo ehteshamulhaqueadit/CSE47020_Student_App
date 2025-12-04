@@ -13,8 +13,11 @@ class LibraryPage extends StatefulWidget {
   State<LibraryPage> createState() => _LibraryPageState();
 }
 
-class _LibraryPageState extends State<LibraryPage> {
+class _LibraryPageState extends State<LibraryPage>
+    with SingleTickerProviderStateMixin {
   late WebViewController _controller;
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   // State management
   bool _isLoading = true;
@@ -31,6 +34,14 @@ class _LibraryPageState extends State<LibraryPage> {
   @override
   void initState() {
     super.initState();
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeIn,
+    );
     _initializeController();
     _loadLibraryPage();
   }
@@ -80,6 +91,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
   @override
   void dispose() {
+    _fadeController.dispose();
     _useridController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -100,6 +112,7 @@ class _LibraryPageState extends State<LibraryPage> {
         setState(() {
           _isLoading = false;
         });
+        _fadeController.forward();
       }
     } catch (e) {
       if (mounted) {
@@ -366,11 +379,6 @@ class _LibraryPageState extends State<LibraryPage> {
       borrowedBooks: _borrowedBooks,
       loginMessage: _loginMessage,
       onRenewAll: _renewAllBooks,
-      onRefresh: () async {
-        await _controller.reload();
-        await Future.delayed(const Duration(seconds: 2));
-        await _parseBorrowedBooks();
-      },
       onLogout: _logout,
       onRenewBook: _renewBook,
       onShowDetails: _showBookDetails,
@@ -378,80 +386,118 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   void _showBookDetails(BorrowedBook book) {
-    showDialog(
+    showGeneralDialog(
       context: context,
-      builder: (context) =>
-          BookDetailsDialog(book: book, onRenew: () => _renewBook(book)),
+      barrierDismissible: true,
+      barrierLabel: 'Book Details',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return BookDetailsDialog(book: book, onRenew: () => _renewBook(book));
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curvedAnimation = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return ScaleTransition(
+          scale: Tween<double>(begin: 0.8, end: 1.0).animate(curvedAnimation),
+          child: FadeTransition(opacity: curvedAnimation, child: child),
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Library'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        elevation: 2,
-      ),
-      body: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.blue.shade50, Colors.white],
-              ),
-            ),
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 600),
-                  child: Card(
-                    elevation: 8,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: _isLoggedIn
-                          ? _buildBorrowedBooksView()
-                          : _buildLoginForm(),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          if (_isLoading)
-            Container(
-              color: Colors.black54,
-              child: const Center(
-                child: Card(
-                  elevation: 8,
-                  child: Padding(
-                    padding: EdgeInsets.all(32.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 24),
-                        Text(
-                          'Loading...',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
+      backgroundColor: Colors.grey.shade50,
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async {
+            if (_isLoggedIn) {
+              await _controller.reload();
+              await Future.delayed(const Duration(seconds: 2));
+              await _parseBorrowedBooks();
+            }
+          },
+          child: Stack(
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: FadeTransition(
+                        opacity: _fadeAnimation,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 16,
                           ),
+                          child: _isLoggedIn
+                              ? _buildBorrowedBooksView()
+                              : Center(
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 360,
+                                    ),
+                                    child: _buildLoginForm(),
+                                  ),
+                                ),
                         ),
-                      ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              if (_isLoading)
+                Container(
+                  color: Colors.black.withOpacity(0.3),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.blue.shade600,
+                            ),
+                            strokeWidth: 3,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Loading...',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

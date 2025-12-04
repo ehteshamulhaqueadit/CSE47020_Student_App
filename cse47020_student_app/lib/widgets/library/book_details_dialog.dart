@@ -13,107 +13,148 @@ class BookDetailsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Row(
-        children: [
-          Icon(Icons.menu_book, color: Colors.blue.shade700),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(book.title, style: const TextStyle(fontSize: 18)),
-          ),
-        ],
-      ),
-      content: SingleChildScrollView(
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 340),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildDetailRow('Author', book.author, Icons.person),
-            _buildDetailRow(
-              'Due Date',
-              book.dueDate,
-              Icons.calendar_today,
-              color: book.hasFines ? Colors.red : Colors.orange,
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        book.title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () => Navigator.pop(context),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        color: Colors.grey.shade600,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    book.author,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
             ),
-            _buildDetailRow('Call Number', book.callNumber, Icons.tag),
-            _buildDetailRow(
-              'Renewals Remaining',
-              book.renewalsRemaining,
-              Icons.refresh,
-              color: book.canRenew ? Colors.green : Colors.grey,
+            const Divider(height: 1),
+            // Content
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _buildInfoRow(
+                      'Due Date',
+                      book.dueDate,
+                      Icons.calendar_today,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildInfoRow(
+                      'Renewals',
+                      book.renewalsRemaining,
+                      Icons.refresh,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildInfoRow(
+                      'Fines',
+                      book.hasFines ? 'Yes' : 'None',
+                      Icons.attach_money,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildInfoRow('Call Number', book.callNumber, Icons.tag),
+                    if (book.itemId.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildInfoRow('Item ID', book.itemId, Icons.numbers),
+                    ],
+                  ],
+                ),
+              ),
             ),
-            _buildDetailRow(
-              'Fines',
-              book.hasFines ? 'Yes' : 'No',
-              Icons.attach_money,
-              color: book.hasFines ? Colors.red : Colors.green,
+            // Actions
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: book.canRenew
+                        ? () {
+                            Navigator.pop(context);
+                            onRenew();
+                          }
+                        : null,
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Renew'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      elevation: 0,
+                      disabledBackgroundColor: Colors.grey.shade300,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            if (book.itemId.isNotEmpty)
-              _buildDetailRow('Item ID', book.itemId, Icons.numbers),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Close'),
-        ),
-        ElevatedButton.icon(
-          onPressed: book.canRenew
-              ? () {
-                  Navigator.pop(context);
-                  onRenew();
-                }
-              : null,
-          icon: const Icon(Icons.refresh),
-          label: const Text('Renew'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: book.canRenew ? Colors.blue : Colors.grey,
-            foregroundColor: Colors.white,
-          ),
-        ),
-      ],
     );
   }
 
-  Widget _buildDetailRow(
-    String label,
-    String value,
-    IconData icon, {
-    Color? color,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 20, color: color ?? Colors.grey.shade700),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
-                    fontSize: 12,
-                  ),
+  Widget _buildInfoRow(String label, String value, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey.shade600),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: color ?? Colors.black87,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class LibraryLoginForm extends StatelessWidget {
+class LibraryLoginForm extends StatefulWidget {
   final TextEditingController useridController;
   final TextEditingController passwordController;
   final VoidCallback onLogin;
@@ -21,42 +21,41 @@ class LibraryLoginForm extends StatelessWidget {
   });
 
   @override
+  State<LibraryLoginForm> createState() => _LibraryLoginFormState();
+}
+
+class _LibraryLoginFormState extends State<LibraryLoginForm> {
+  bool _obscurePassword = true;
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Row(
-          children: [
-            Icon(Icons.local_library, color: Colors.blue),
-            SizedBox(width: 8),
-            Text(
-              'Library Login',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        if (loginMessage.isNotEmpty) ...[
+        if (widget.loginMessage.isNotEmpty) ...[
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isLoggedIn ? Colors.green.shade100 : Colors.red.shade100,
+              color: widget.isLoggedIn
+                  ? Colors.green.shade100
+                  : Colors.red.shade100,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
                 Icon(
-                  isLoggedIn ? Icons.check_circle : Icons.error,
-                  color: isLoggedIn
+                  widget.isLoggedIn ? Icons.check_circle : Icons.error,
+                  color: widget.isLoggedIn
                       ? Colors.green.shade900
                       : Colors.red.shade900,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    loginMessage,
+                    widget.loginMessage,
                     style: TextStyle(
-                      color: isLoggedIn
+                      color: widget.isLoggedIn
                           ? Colors.green.shade900
                           : Colors.red.shade900,
                     ),
@@ -66,7 +65,7 @@ class LibraryLoginForm extends StatelessWidget {
             ),
           ),
         ],
-        if (errorMessage.isNotEmpty) ...[
+        if (widget.errorMessage.isNotEmpty) ...[
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(12),
@@ -80,7 +79,7 @@ class LibraryLoginForm extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    errorMessage,
+                    widget.errorMessage,
                     style: TextStyle(color: Colors.orange.shade900),
                   ),
                 ),
@@ -90,7 +89,7 @@ class LibraryLoginForm extends StatelessWidget {
         ],
         const SizedBox(height: 16),
         TextField(
-          controller: useridController,
+          controller: widget.useridController,
           decoration: const InputDecoration(
             labelText: 'Login (User ID)',
             hintText: 'Enter your student/staff ID',
@@ -101,22 +100,32 @@ class LibraryLoginForm extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         TextField(
-          controller: passwordController,
-          obscureText: true,
-          decoration: const InputDecoration(
+          controller: widget.passwordController,
+          obscureText: _obscurePassword,
+          decoration: InputDecoration(
             labelText: 'Password',
             hintText: 'Enter your password',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.lock),
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.lock),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword ? Icons.visibility : Icons.visibility_off,
+              ),
+              onPressed: () {
+                setState(() {
+                  _obscurePassword = !_obscurePassword;
+                });
+              },
+            ),
           ),
-          onSubmitted: (_) => onLogin(),
+          onSubmitted: (_) => widget.onLogin(),
           textInputAction: TextInputAction.done,
         ),
         const SizedBox(height: 16),
         ElevatedButton.icon(
-          onPressed: isLoading ? null : onLogin,
+          onPressed: widget.isLoading ? null : widget.onLogin,
           icon: const Icon(Icons.login),
-          label: Text(isLoading ? 'Logging in...' : 'Login'),
+          label: Text(widget.isLoading ? 'Logging in...' : 'Login'),
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 14),
             backgroundColor: Colors.blue,

@@ -6,7 +6,6 @@ class BorrowedBooksView extends StatelessWidget {
   final List<BorrowedBook> borrowedBooks;
   final String loginMessage;
   final VoidCallback onRenewAll;
-  final VoidCallback onRefresh;
   final VoidCallback onLogout;
   final Function(BorrowedBook) onRenewBook;
   final Function(BorrowedBook) onShowDetails;
@@ -16,7 +15,6 @@ class BorrowedBooksView extends StatelessWidget {
     required this.borrowedBooks,
     required this.loginMessage,
     required this.onRenewAll,
-    required this.onRefresh,
     required this.onLogout,
     required this.onRenewBook,
     required this.onShowDetails,
@@ -30,36 +28,26 @@ class BorrowedBooksView extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Row(
-              children: [
-                Icon(Icons.book, color: Colors.green),
-                SizedBox(width: 8),
-                Text(
-                  'Borrowed Books',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            if (borrowedBooks.any((book) => book.canRenew))
+              ElevatedButton.icon(
+                icon: const Icon(Icons.autorenew),
+                label: const Text('Renew All'),
+                onPressed: onRenewAll,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
                 ),
-              ],
-            ),
-            Row(
-              children: [
-                if (borrowedBooks.any((book) => book.canRenew))
-                  IconButton(
-                    icon: const Icon(Icons.autorenew),
-                    onPressed: onRenewAll,
-                    tooltip: 'Renew All',
-                    color: Colors.blue,
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: onRefresh,
-                  tooltip: 'Refresh',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.logout),
-                  onPressed: onLogout,
-                  tooltip: 'Logout',
-                ),
-              ],
+              )
+            else
+              const SizedBox.shrink(),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.logout),
+              label: const Text('Logout'),
+              onPressed: onLogout,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
             ),
           ],
         ),
