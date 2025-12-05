@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'borrowed_book_model.dart';
+import '../../services/notification_service.dart';
+import 'notification_settings_dialog.dart';
 
-class BookCard extends StatelessWidget {
+class BookCard extends StatefulWidget {
   final BorrowedBook book;
   final VoidCallback onRenew;
   final VoidCallback onShowDetails;
@@ -12,6 +14,76 @@ class BookCard extends StatelessWidget {
     required this.onRenew,
     required this.onShowDetails,
   });
+
+  @override
+  State<BookCard> createState() => _BookCardState();
+}
+
+class _BookCardState extends State<BookCard> {
+  final NotificationService _notificationService = NotificationService();
+  bool _hasNotification = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkNotificationStatus();
+  }
+
+  Future<void> _checkNotificationStatus() async {
+    final hours = await _notificationService.getBookNotificationHours(
+      widget.book.itemId,
+    );
+    if (mounted) {
+      setState(() {
+        _hasNotification = hours != null;
+      });
+    }
+  }
+
+  Future<void> _showNotificationSettings() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => NotificationSettingsDialog(book: widget.book),
+    );
+
+    // Refresh notification status if settings were changed
+    if (result == true && mounted) {
+      await _checkNotificationStatus();
+    }
+  }
+
+  /// Reschedules notification after book renewal with updated due date
+  Future<void> rescheduleNotification() async {
+    final hours = await _notificationService.getBookNotificationHours(
+      widget.book.itemId,
+    );
+    if (hours != null) {
+      // Notification was set, reschedule with new due date
+      await _notificationService.scheduleBookReminder(
+        bookId: widget.book.itemId,
+        bookTitle: widget.book.title,
+        dueDate: _parseDueDate(widget.book.dueDate),
+        hoursBeforeDue: hours,
+      );
+      await _checkNotificationStatus();
+    }
+  }
+
+  DateTime _parseDueDate(String dueDateStr) {
+    try {
+      final parts = dueDateStr.split('/');
+      if (parts.length == 3) {
+        return DateTime(
+          int.parse(parts[2]), // year
+          int.parse(parts[1]), // month
+          int.parse(parts[0]), // day
+        );
+      }
+    } catch (e) {
+      print('Error parsing due date: $e');
+    }
+    return DateTime.now().add(const Duration(days: 7));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +113,7 @@ class BookCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        book.title,
+                        widget.book.title,
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 15,
@@ -52,7 +124,7 @@ class BookCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        book.author,
+                        widget.book.author,
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.grey.shade600,
@@ -69,7 +141,7 @@ class BookCard extends StatelessWidget {
                 Icon(
                   Icons.attach_money,
                   size: 24,
-                  color: book.hasFines ? Colors.red : Colors.green,
+                  color: widget.book.hasFines ? Colors.red : Colors.green,
                 ),
               ],
             ),
@@ -83,11 +155,11 @@ class BookCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  book.dueDate,
+                  widget.book.dueDate,
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
                 ),
                 const Spacer(),
-                if (book.hasFines)
+                if (widget.book.hasFines)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -111,9 +183,31 @@ class BookCard extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
+                // Notification bell button
+                IconButton(
+                  onPressed: _showNotificationSettings,
+                  icon: Icon(
+                    _hasNotification
+                        ? Icons.notifications_active
+                        : Icons.notifications_outlined,
+                    size: 20,
+                  ),
+                  style: IconButton.styleFrom(
+                    foregroundColor: _hasNotification
+                        ? Colors.blue.shade700
+                        : Colors.grey.shade600,
+                    backgroundColor: _hasNotification
+                        ? Colors.blue.shade50
+                        : Colors.grey.shade100,
+                    padding: const EdgeInsets.all(8),
+                    minimumSize: const Size(36, 36),
+                  ),
+                  tooltip: 'Set Reminder',
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: onShowDetails,
+                    onPressed: widget.onShowDetails,
                     icon: const Icon(Icons.info_outline, size: 18),
                     label: const Text('Details'),
                     style: OutlinedButton.styleFrom(
@@ -126,11 +220,11 @@ class BookCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (book.canRenew) ...[
+                if (widget.book.canRenew) ...[
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextButton(
-                      onPressed: onRenew,
+                      onPressed: widget.onRenew,
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         foregroundColor: Colors.blue.shade700,
@@ -143,9 +237,9 @@ class BookCard extends StatelessWidget {
                         children: [
                           const Text('Renew '),
                           Text(
-                            '(${book.renewalsLeft})',
+                            '(${widget.book.renewalsLeft})',
                             style: TextStyle(
-                              color: book.renewalsLeft < 10
+                              color: widget.book.renewalsLeft < 10
                                   ? Colors.red
                                   : Colors.blue.shade700,
                               fontWeight: FontWeight.w600,
@@ -165,7 +259,7 @@ class BookCard extends StatelessWidget {
   }
 
   Widget _buildDaysLeftBadge() {
-    final daysLeft = book.daysLeft;
+    final daysLeft = widget.book.daysLeft;
     Color badgeColor;
     String text;
 

@@ -5,6 +5,7 @@ import '../widgets/library/library_login_form.dart';
 import '../widgets/library/borrowed_books_view.dart';
 import '../widgets/library/book_details_dialog.dart';
 import '../widgets/library/library_web_service.dart';
+import '../services/notification_service.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -272,6 +273,47 @@ class _LibraryPageState extends State<LibraryPage>
     }
   }
 
+  Future<void> _rescheduleNotificationForBook(BorrowedBook book) async {
+    try {
+      // Check if notification was set for this book
+      final hours = await NotificationService().getBookNotificationHours(
+        book.itemId,
+      );
+      if (hours != null) {
+        // Find the updated book info
+        final updatedBook = _borrowedBooks.firstWhere(
+          (b) => b.itemId == book.itemId,
+          orElse: () => book,
+        );
+        // Reschedule with new due date
+        await NotificationService().scheduleBookReminder(
+          bookId: updatedBook.itemId,
+          bookTitle: updatedBook.title,
+          dueDate: _parseDueDate(updatedBook.dueDate),
+          hoursBeforeDue: hours,
+        );
+      }
+    } catch (e) {
+      print('Error rescheduling notification: $e');
+    }
+  }
+
+  DateTime _parseDueDate(String dueDateStr) {
+    try {
+      final parts = dueDateStr.split('/');
+      if (parts.length == 3) {
+        return DateTime(
+          int.parse(parts[2]), // year
+          int.parse(parts[1]), // month
+          int.parse(parts[0]), // day
+        );
+      }
+    } catch (e) {
+      print('Error parsing due date: $e');
+    }
+    return DateTime.now().add(const Duration(days: 7));
+  }
+
   Future<void> _renewBook(BorrowedBook book) async {
     if (!book.canRenew) {
       _showSnackBar('This book cannot be renewed. No renewals remaining.');
@@ -347,6 +389,10 @@ class _LibraryPageState extends State<LibraryPage>
           if (verifyResult['success'] == true) {
             // Refresh the book list silently to show updated renewal count
             await _parseBorrowedBooks(showSuccessMessage: false);
+
+            // Reschedule notification if one was set
+            await _rescheduleNotificationForBook(book);
+
             if (mounted) {
               _showSnackBar('Book renewed successfully!', isError: false);
             }

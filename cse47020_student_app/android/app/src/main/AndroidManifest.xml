@@ -1,8 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Required To set alarms -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <!-- Required for notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <application
-        android:label="cse47020_student_app"
+        android:label="BRACU Student Hub"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

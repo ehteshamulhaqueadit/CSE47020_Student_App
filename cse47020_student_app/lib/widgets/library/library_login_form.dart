@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/credentials_service.dart';
 
 class LibraryLoginForm extends StatefulWidget {
   final TextEditingController useridController;
@@ -26,6 +27,43 @@ class LibraryLoginForm extends StatefulWidget {
 
 class _LibraryLoginFormState extends State<LibraryLoginForm> {
   bool _obscurePassword = true;
+  bool _saveCredentials = false;
+  bool _isLoadingCredentials = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final hasSaved = await CredentialsService.hasCredentialsSaved();
+    final credentials = await CredentialsService.getCredentials();
+
+    if (mounted) {
+      setState(() {
+        _saveCredentials = hasSaved;
+        _isLoadingCredentials = false;
+      });
+
+      if (credentials != null) {
+        widget.useridController.text = credentials['userId']!;
+        widget.passwordController.text = credentials['password']!;
+      }
+    }
+  }
+
+  Future<void> _handleLogin() async {
+    if (_saveCredentials) {
+      await CredentialsService.saveCredentials(
+        userId: widget.useridController.text.trim(),
+        password: widget.passwordController.text.trim(),
+      );
+    } else {
+      await CredentialsService.clearCredentials();
+    }
+    widget.onLogin();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +130,7 @@ class _LibraryLoginFormState extends State<LibraryLoginForm> {
           controller: widget.useridController,
           decoration: const InputDecoration(
             labelText: 'Login (User ID)',
-            hintText: 'Enter your student/staff ID',
+            hintText: 'Enter your student ID',
             border: OutlineInputBorder(),
             prefixIcon: Icon(Icons.person),
           ),
@@ -118,12 +156,34 @@ class _LibraryLoginFormState extends State<LibraryLoginForm> {
               },
             ),
           ),
-          onSubmitted: (_) => widget.onLogin(),
+          onSubmitted: (_) => _handleLogin(),
           textInputAction: TextInputAction.done,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        if (!_isLoadingCredentials)
+          CheckboxListTile(
+            value: _saveCredentials,
+            onChanged: (value) {
+              setState(() {
+                _saveCredentials = value ?? false;
+              });
+            },
+            title: const Text(
+              'Save credentials on this device',
+              style: TextStyle(fontSize: 14),
+            ),
+            subtitle: const Text(
+              'Your login will be remembered for next time',
+              style: TextStyle(fontSize: 12),
+            ),
+            controlAffinity: ListTileControlAffinity.leading,
+            activeColor: Colors.blue,
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+          ),
+        const SizedBox(height: 8),
         ElevatedButton.icon(
-          onPressed: widget.isLoading ? null : widget.onLogin,
+          onPressed: widget.isLoading ? null : _handleLogin,
           icon: const Icon(Icons.login),
           label: Text(widget.isLoading ? 'Logging in...' : 'Login'),
           style: ElevatedButton.styleFrom(
