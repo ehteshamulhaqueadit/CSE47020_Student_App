@@ -53,11 +53,20 @@ class _LibraryPageState extends State<LibraryPage>
   void _initializeController() {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.white)
+      ..enableZoom(false)
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageFinished: (url) => _handlePageFinished(url),
+          onPageStarted: (url) {
+            print('Page started loading: $url');
+          },
+          onPageFinished: (url) {
+            print('Page finished loading: $url');
+            _handlePageFinished(url);
+          },
           onWebResourceError: (error) => _handleWebError(error),
           onNavigationRequest: (request) {
+            print('Navigation request: ${request.url}');
             return NavigationDecision.navigate;
           },
         ),
@@ -68,10 +77,13 @@ class _LibraryPageState extends State<LibraryPage>
   }
 
   Future<void> _handlePageFinished(String url) async {
+    print('Page finished: $url, waiting for login: $_waitingForLoginResponse');
+
     if (_waitingForLoginResponse) {
       _waitingForLoginResponse = false;
       // Longer delay to ensure page is fully rendered after login
-      await Future.delayed(const Duration(seconds: 2));
+      // Increased delay for release builds
+      await Future.delayed(const Duration(seconds: 3));
       await _checkLoginStatus();
     }
 
@@ -191,46 +203,73 @@ class _LibraryPageState extends State<LibraryPage>
 
   Future<void> _checkLoginStatus() async {
     try {
-      var status = await LibraryWebService.checkLoginStatus(_controller);
+      print('Checking login status...');
 
-      // If page is still loading, wait and retry once
-      if (status['pending'] == true) {
-        await Future.delayed(const Duration(seconds: 1));
-        status = await LibraryWebService.checkLoginStatus(_controller);
-      }
+      // Try multiple times with increasing delays for release builds
+      const maxRetries = 3;
+      const retryDelays = [1000, 2000, 3000]; // milliseconds
 
-      if (status['success'] == true) {
-        await _parseBorrowedBooks(showSuccessMessage: _isInitialLogin);
-      } else {
-        // Don't show error if page is still pending after retry
-        if (status['pending'] != true && mounted) {
-          setState(() {
-            _isLoading = false;
-            _isLoggedIn = false;
-            _loginMessage = status['message'] ?? 'Login failed';
-            _borrowedBooks = [];
-          });
-          // Only show login failed message if this was an initial login attempt
-          if (_isInitialLogin) {
-            _showSnackBar(status['message'] ?? 'Login failed');
-          }
-          _isInitialLogin = false;
-        } else if (mounted) {
-          // Page still loading after retry, just stop the loading indicator
-          setState(() {
-            _isLoading = false;
+      for (int attempt = 0; attempt < maxRetries; attempt++) {
+        var status = await LibraryWebService.checkLoginStatus(_controller)
+            .timeout(
+              const Duration(seconds: 10),
+              onTimeout: () => {
+                'pending': true,
+                'message': 'Checking login status...',
+              },
+            );
+
+        print('Login check attempt ${attempt + 1}: $status');
+
+        if (status['success'] == true) {
+          await _parseBorrowedBooks(showSuccessMessage: _isInitialLogin);
+          return;
+        }
+
+        // If definitely failed (not pending), show error
+        if (status['pending'] != true) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _isLoggedIn = false;
+              _loginMessage = status['message'] ?? 'Login failed';
+              _borrowedBooks = [];
+            });
+            if (_isInitialLogin) {
+              _showSnackBar(status['message'] ?? 'Login failed');
+            }
             _isInitialLogin = false;
-          });
+          }
+          return;
+        }
+
+        // Still pending, wait before retry
+        if (attempt < maxRetries - 1) {
+          await Future.delayed(Duration(milliseconds: retryDelays[attempt]));
         }
       }
+
+      // All retries exhausted
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isLoggedIn = false;
+          _loginMessage = 'Login verification timed out';
+          _borrowedBooks = [];
+        });
+        if (_isInitialLogin) {
+          _showSnackBar('Could not verify login. Please try again.');
+        }
+        _isInitialLogin = false;
+      }
     } catch (e) {
+      print('Error in _checkLoginStatus: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
           _isLoggedIn = false;
           _loginMessage = 'Error checking login: $e';
         });
-        // Only show error if this was an initial login attempt
         if (_isInitialLogin) {
           _showSnackBar('Error checking login: $e');
         }
